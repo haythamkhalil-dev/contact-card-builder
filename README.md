@@ -4,7 +4,7 @@ Generate a **print-ready PDF business card**, a **QR code**, and a **`.vcf` cont
 file** — entirely in your browser. No backend, no signup, no install. Fill in a short
 form, pick a card size, and download.
 
-**▶ Try it live: https://haytham-m-khalil.github.io/contact-card-builder/**
+**▶ Try it live: https://haythamkhalil-dev.github.io/contact-card-builder/**
 
 ![Contact Card Builder — the live card preview on a proofing board with crop marks and size rulers, the form on the right](docs/screenshot.png)
 
