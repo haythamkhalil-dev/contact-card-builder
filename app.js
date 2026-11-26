@@ -110,6 +110,8 @@
       qrTooBig: "There's more here than a QR code can hold.",
       qrAdviceLinks: "Remove a link, or untick \u201cSave links in the QR code and contact file\u201d. Links still print on the card.",
       qrAdviceOther: "Try fewer phone numbers or shorter details.",
+      // {chars} is filled in by cardWarnings() (see missingGlyphs).
+      cardUnprintable: "The card can't print these characters: {chars}. It prints Latin and Arabic letters. The QR code and contact file keep them.",
       btnClearForm: "Clear form",
       confirmClearForm: "Clear the form? This also deletes the details saved in this browser.",
     },
@@ -194,6 +196,7 @@
       qrTooBig: "البيانات أكثر مما يتسع له رمز QR.",
       qrAdviceLinks: "احذف رابطًا، أو ألغِ تحديد «حفظ الروابط في رمز QR وملف جهة الاتصال». ستبقى الروابط مطبوعة على البطاقة.",
       qrAdviceOther: "جرّب تقليل أرقام الهاتف أو اختصار البيانات.",
+      cardUnprintable: "لا يمكن طباعة هذه الحروف على البطاقة: {chars}. تُطبع الحروف العربية واللاتينية فقط، ويحتفظ بها رمز QR وملف جهة الاتصال.",
       btnClearForm: "مسح النموذج",
       confirmClearForm: "هل تريد مسح النموذج؟ سيؤدي ذلك أيضًا إلى حذف البيانات المحفوظة في هذا المتصفح.",
     },
@@ -488,21 +491,50 @@
   var CARD_INK = "#1c2230";
   var CARD_GREY = "#73787f";
 
-  // Which font a piece of card text is drawn in. Arabic runs use the embedded
-  // Amiri (it has no bold); everything else uses Helvetica. The preview maps
-  // "helvetica" to the vendored Arimo, which has identical character widths.
+  // Which font a piece of card text is drawn in. Arabic runs use Amiri (it
+  // has no bold); everything else uses Arimo, which has Helvetica's character
+  // widths. Both are vendored, embedded in the PDF (lib/amiri-font.js,
+  // lib/arimo-font.js) and drawn by the preview from the same font files, so
+  // the card prints the same everywhere — and names like "Łukasz" or "Şahin"
+  // print correctly, which jsPDF's built-in Helvetica can't do.
   function cardFont(text, bold) {
     if (containsArabic(text)) return { family: "Amiri", style: "normal" };
-    return { family: "helvetica", style: bold ? "bold" : "normal" };
+    return { family: "Arimo", style: bold ? "bold" : "normal" };
   }
 
   // Width of `text` in points, measured with jsPDF's own font metrics so the
   // PDF and the preview make exactly the same fitting decisions.
+  // One scratch jsPDF doc, made on first use, holds the fonts we measure with.
   var measureDoc = null;
-  function textWidthPt(text, font, sizePt) {
+  function measurer() {
     if (!measureDoc) measureDoc = new window.jspdf.jsPDF({ unit: "pt" });
-    measureDoc.setFont(font.family, font.style);
-    return measureDoc.getStringUnitWidth(text) * sizePt;
+    return measureDoc;
+  }
+  function textWidthPt(text, font, sizePt) {
+    var doc = measurer();
+    doc.setFont(font.family, font.style);
+    return doc.getStringUnitWidth(text) * sizePt;
+  }
+
+  // Characters on the card that its fonts can't draw (e.g. Cyrillic, Greek or
+  // Chinese: the embedded Arimo and Amiri cover Latin and Arabic only). They
+  // would print as empty boxes, so the app lists them in a warning. Checked
+  // against each font's own character map, with Arabic in the letter forms
+  // jsPDF actually prints.
+  function missingGlyphs(ops) {
+    var doc = measurer();
+    var missing = [];
+    ops.forEach(function (op) {
+      if (op.type !== "text") return;
+      doc.setFont(op.font.family, op.font.style);
+      var codeMap = doc.getFont().metadata.cmap.unicode.codeMap;
+      var text = op.font.family === "Amiri" ? pdfArabicForms(op.text) : op.text;
+      Array.from(text).forEach(function (ch) {
+        var code = ch.codePointAt(0);
+        if (code >= 32 && !codeMap[code] && missing.indexOf(ch) < 0) missing.push(ch);
+      });
+    });
+    return missing;
   }
 
   // Lay the card out once, in PDF points, as a list of drawing operations.
@@ -836,6 +868,7 @@
       var single = new window.jspdf.jsPDF({
         unit: "pt",
         compress: true,
+        putOnlyUsedFonts: true, // no unused (and unembedded) standard fonts
         format: [layout.w, layout.h],
         orientation: layout.w >= layout.h ? "landscape" : "portrait",
       });
@@ -852,6 +885,7 @@
     var doc = new window.jspdf.jsPDF({
       unit: "pt",
       compress: true, // ten vector QR codes add up; compression keeps the file small
+      putOnlyUsedFonts: true,
       format: [sheet.paper.w, sheet.paper.h],
       orientation: "portrait",
     });
@@ -868,7 +902,7 @@
   // is the same fraction of the card here.
   var SVG_NS = "http://www.w3.org/2000/svg";
   var SVG_FONTS = {
-    helvetica: '"Arimo", Helvetica, Arial, sans-serif',
+    Arimo: '"Arimo", Helvetica, Arial, sans-serif',
     Amiri: '"Amiri", "Arimo", serif',
   };
   var SVG_ANCHOR = { left: "start", right: "end", center: "middle" };
@@ -1200,12 +1234,19 @@
     height.textContent = t(eu ? "rulerEuHeight" : "rulerUsHeight");
   }
 
-  // What's wrong with the card, as messages for the warning box: content
-  // that doesn't fit, and a QR that may not scan. For the QR the advice fits
-  // the situation: links in the QR are the usual cause, and unticking them
-  // keeps them on the card.
+  // What's wrong with the card, as messages for the warning box: characters
+  // the card can't print, content that doesn't fit, and a QR that may not
+  // scan. For the QR the advice fits the situation: links in the QR are the
+  // usual cause, and unticking them keeps them on the card.
   function cardWarnings(layout, data, backLayout) {
     var messages = [];
+    var missing = missingGlyphs(layout.ops.concat(backLayout ? backLayout.ops : []));
+    if (missing.length) {
+      // An isolate (U+2068..U+2069) keeps the list in its own reading order
+      // inside the Arabic sentence.
+      var list = "\u2068" + missing.slice(0, 8).join(" ") + "\u2069";
+      messages.push(t("cardUnprintable").replace("{chars}", list));
+    }
     if (!layout.fits) messages.push(t("cardOverflow"));
     // The QR back always fits; the bilingual back has its own text to check.
     if (backLayout && !backLayout.fits) messages.push(t("backOverflow"));
@@ -1679,6 +1720,7 @@
     hasBack: hasBack,
     translatePhoneLabel: translatePhoneLabel,
     qrScanCheck: qrScanCheck,
+    missingGlyphs: missingGlyphs,
     layoutSheet: layoutSheet,
     buildPdf: buildPdf,
     fileTimestamp: fileTimestamp,

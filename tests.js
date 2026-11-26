@@ -433,6 +433,37 @@
     assertEqual(CC.buildPdf(data, CC.buildQrModel(CC.buildVCard(data))).getNumberOfPages(), 2);
   });
 
+  group("Card fonts — what the card can print");
+
+  // Every text drawn on a card, with its font family.
+  function textFonts(card) {
+    return card.ops.filter(function (op) { return op.type === "text"; })
+      .map(function (op) { return op.font.family + ": " + op.text; });
+  }
+
+  test("Latin text is drawn in Arimo, Arabic in Amiri", function () {
+    var card = layout(sampleCard({ displayName: "روبن دو" }), "en");
+    var fonts = textFonts(card);
+    assertTrue(fonts.indexOf("Amiri: روبن دو") !== -1, "Arabic name");
+    assertTrue(fonts.indexOf("Arimo: Product Designer") !== -1, "Latin title");
+  });
+  test("the sample card prints every character, in both languages and on the back", function () {
+    ["en", "ar"].forEach(function (lang) {
+      assertEqual(CC.missingGlyphs(layout(sampleCard(), lang).ops), [], lang + " front");
+      var data = sampleCard({ back: "other", otherName: "روبن دو", otherTitle: "مصمم منتجات" });
+      assertEqual(CC.missingGlyphs(layout(data, lang, "back").ops), [], lang + " back");
+    });
+  });
+  test("accented Latin names print (Polish, Turkish, Czech, Romanian, Vietnamese)", function () {
+    var data = sampleCard({ displayName: "Łukasz Żółć Şahin Dvořák", title: "Ștefan Nguyễn",
+                            company: "Ağ Şirketi – “Œuvre” €" });
+    assertEqual(CC.missingGlyphs(layout(data).ops), []);
+  });
+  test("letters the fonts don't have are listed once each", function () {
+    var data = sampleCard({ displayName: "Иван Иванов", company: "北京" });
+    assertEqual(CC.missingGlyphs(layout(data).ops), ["И", "в", "а", "н", "о", "北", "京"]);
+  });
+
   group("File names");
 
   test("the timestamp is local time, zero-padded, with no colons", function () {

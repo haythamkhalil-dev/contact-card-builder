@@ -56,8 +56,8 @@ The `.vcf` is the source of truth; the QR encodes the exact same vCard text, usi
   (Latin + Arabic) — all **vendored locally** in
   [`lib/`](lib/) so the app is self-contained and works offline.
 - The card is laid out once, in PDF points. The PDF and the live preview (an SVG) both
-  draw from that one layout. Arimo has the same character widths as the PDF's
-  Helvetica, so the preview shows exactly how everything will fit on the printed card.
+  draw from that one layout, in the same embedded fonts (Arimo for Latin, Amiri for
+  Arabic), so the preview shows exactly how everything will fit on the printed card.
 
 ## Run it locally
 

@@ -112,7 +112,7 @@
    Amiri — the same Arabic font the PDF embeds. The subset holds only Arabic
    glyphs and the unicode-range limits it to Arabic script, so Latin runs
    (phone numbers, email, links) fall through to Arimo — exactly like the PDF,
-   which draws Arabic in Amiri and Latin in Helvetica. */
+   which draws Arabic in Amiri and Latin in Arimo. */
 @font-face {
   font-family: "Amiri";
   src: url("lib/amiri-regular.woff2") format("woff2");
@@ -123,8 +123,9 @@
     U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
 }
 
-/* Arimo — its character widths are identical to Helvetica, the font the PDF
-   uses, so every line on the preview is exactly as long as it prints. */
+/* Arimo — the same Latin font the PDF embeds, built from the same subset
+   (lib/arimo-font.js), so every line on the preview is exactly as long as it
+   prints. */
 @font-face {
   font-family: "Arimo";
   src: url("lib/arimo-regular.woff2") format("woff2");
