@@ -487,9 +487,20 @@
   // (they're 7 pt type, normally 11.5 pt apart).
   var CONTACT_STEP_MIN = 9.5;
 
-  // Card colors (the accent comes from the form).
+  // Card colors (the accent comes from the form). The grey is dark enough
+  // (6.7:1 on white) for small type to print solid: home printers draw a light
+  // grey as a sparse pattern of dots, which makes small text ragged and faint.
   var CARD_INK = "#1c2230";
-  var CARD_GREY = "#73787f";
+  var CARD_GREY = "#575c63";
+
+  // The "Scan to save my contact" caption under the QR code, in points.
+  var CAPTION_SIZE = 6.5;
+
+  // Amiri's letters are small for their point size: the body of an Arabic
+  // letter is about 0.7x the height of a Latin lowercase letter in Arimo at
+  // the same size. So Arabic text is set 25% larger, to read like the Latin
+  // text around it. (The name is big enough already and keeps its size.)
+  var ARABIC_TEXT_SCALE = 1.25;
 
   // Which font a piece of card text is drawn in. Arabic runs use Amiri (it
   // has no bold); everything else uses Arimo, which has Helvetica's character
@@ -500,6 +511,13 @@
   function cardFont(text, bold) {
     if (containsArabic(text)) return { family: "Amiri", style: "normal" };
     return { family: "Arimo", style: bold ? "bold" : "normal" };
+  }
+
+  // The size a piece of text is drawn at: `sizePt` for Latin text, larger
+  // for Arabic (see ARABIC_TEXT_SCALE).
+  function textSize(font, sizePt) {
+    if (font.family !== "Amiri") return sizePt;
+    return Math.round(sizePt * ARABIC_TEXT_SCALE * 100) / 100;
   }
 
   // Width of `text` in points, measured with jsPDF's own font metrics so the
@@ -566,11 +584,19 @@
     var anchorX = rtl ? W - edge : edge;   // where text starts (the "start" side)
     var align = rtl ? "right" : "left";
 
+    // Draw a line of text. `sizePt` is its size in Latin type; Arabic is
+    // drawn larger (textSize).
     function text(str, x, y, sizePt, bold, color, alignTo) {
       var font = cardFont(str, bold);
-      ops.push({ type: "text", text: str, x: x, y: y, size: sizePt,
+      ops.push({ type: "text", text: str, x: x, y: y, size: textSize(font, sizePt),
                  font: font, color: color, align: alignTo || align });
       return font;
+    }
+
+    // Extra room above a line whose Arabic text is drawn larger, so its tall
+    // letters stay clear of the line above. Zero for Latin text.
+    function extraRoom(str, sizePt) {
+      return textSize(cardFont(str, false), sizePt) - sizePt;
     }
 
     // --- QR: vector squares, vertically centered, on the far side ---
@@ -579,7 +605,7 @@
     var qy = (H - qrSize) / 2 - 4;
     // quiet: white quiet-zone modules inside the QR box, for scannability.
     ops.push({ type: "qr", x: qx, y: qy, size: qrSize, quiet: 2, qr: qr, color: CARD_INK });
-    text(tIn(lang, "scanCaption"), qx + qrSize / 2, qy + qrSize + 9, 5.4, false, CARD_GREY, "center");
+    text(tIn(lang, "scanCaption"), qx + qrSize / 2, qy + qrSize + 9, CAPTION_SIZE, false, CARD_GREY, "center");
 
     // --- Accent bar (right under RTL, left otherwise) ---
     // `bleed` names the card edge the bar touches. On a full sheet the bar is
@@ -602,20 +628,23 @@
       nameSize -= 0.5;
     }
     var y = M + nameSize;
-    text(data.displayName, anchorX, y, nameSize, true, CARD_INK);
+    // Pushed directly: the name keeps its size in Arabic too.
+    ops.push({ type: "text", text: data.displayName, x: anchorX, y: y, size: nameSize,
+               font: nameFont, color: CARD_INK, align: align });
 
     // --- Title ---
     if (data.title) {
-      y += 13;
+      y += 13 + extraRoom(data.title, 7.6);
       text(data.title, anchorX, y, 7.6, false, acc);
     }
 
     // --- Company (under the title; shrinks to fit, since names run long) ---
     if (data.company) {
-      y += data.title ? 10 : 13;
+      y += (data.title ? 10 : 13) + extraRoom(data.company, 7.6);
       var companyFont = cardFont(data.company, false);
       var companySize = 7.6;
-      while (companySize > 6 && textWidthPt(data.company, companyFont, companySize) > textWidth) {
+      while (companySize > 6 &&
+             textWidthPt(data.company, companyFont, textSize(companyFont, companySize)) > textWidth) {
         companySize = Math.round((companySize - 0.2) * 10) / 10;
       }
       text(data.company, anchorX, y, companySize, false, CARD_GREY);
@@ -645,7 +674,8 @@
     data.phones.forEach(function (phone) {
       if (phone.label) {
         var labelFont = text(phone.label, anchorX, y, 6.6, true, acc);
-        var offset = textWidthPt(phone.label, labelFont, 6.6) + textWidthPt("  ", labelFont, 6.6);
+        var labelSize = textSize(labelFont, 6.6);
+        var offset = textWidthPt(phone.label, labelFont, labelSize) + textWidthPt("  ", labelFont, labelSize);
         text(phone.number, rtl ? anchorX - offset : anchorX + offset, y, 7.0, false, CARD_INK);
       } else {
         text(phone.number, anchorX, y, 7.0, false, CARD_INK);
@@ -695,8 +725,10 @@
     ops.push({ type: "qr", x: qx, y: qy, size: qrSize, quiet: 2, qr: qr, color: CARD_INK });
 
     var caption = tIn(lang, "scanCaption");
+    var captionFont = cardFont(caption, false);
     ops.push({ type: "text", text: caption, x: W / 2, y: qy + qrSize + captionGap,
-               size: 5.4, font: cardFont(caption, false), color: CARD_GREY, align: "center" });
+               size: textSize(captionFont, CAPTION_SIZE), font: captionFont, color: CARD_GREY,
+               align: "center" });
 
     ops.push({ type: "rect", x: rtl ? 0 : W - 4, y: 0, w: 4, h: H, color: acc,
                bleed: rtl ? "left" : "right" });

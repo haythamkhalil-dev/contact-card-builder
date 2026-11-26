@@ -459,6 +459,35 @@
                             company: "Ağ Şirketi – “Œuvre” €" });
     assertEqual(CC.missingGlyphs(layout(data).ops), []);
   });
+  // The size each text on a card is drawn at, by text.
+  function textSizes(card) {
+    var sizes = {};
+    card.ops.forEach(function (op) { if (op.type === "text") sizes[op.text] = op.size; });
+    return sizes;
+  }
+
+  test("Latin text keeps its sizes; the caption is 6.5 pt", function () {
+    var sizes = textSizes(layout(sampleCard({ company: "" }), "en"));
+    assertEqual(sizes["Robin Doe"], 13, "name");
+    assertEqual(sizes["Product Designer"], 7.6, "title");
+    assertEqual(sizes["Mobile"], 6.6, "phone label");
+    assertEqual(sizes["robin.doe@example.com"], 7, "email");
+    assertEqual(sizes["Scan to save my contact"], 6.5, "caption");
+  });
+  test("Arabic text is drawn 25% larger, except the name", function () {
+    var data = sampleCard({ displayName: "روبن دو", title: "مصمم منتجات", company: "",
+                            phones: [{ label: "جوال", number: "+1 555 0188" }] });
+    var sizes = textSizes(layout(data, "ar"));
+    assertEqual(sizes["روبن دو"], 13, "name keeps its size");
+    assertEqual(sizes["مصمم منتجات"], 9.5, "title");
+    assertEqual(sizes["جوال"], 8.25, "phone label");
+    assertEqual(sizes["+1 555 0188"], 7, "the number stays Latin-sized");
+    assertEqual(sizes["امسح لحفظ جهة الاتصال"], 8.13, "caption");
+  });
+  test("the large-QR back uses the same caption sizes", function () {
+    assertEqual(textSizes(layout(sampleCard({ back: "qr" }), "en", "back"))["Scan to save my contact"], 6.5);
+    assertEqual(textSizes(layout(sampleCard({ back: "qr" }), "ar", "back"))["امسح لحفظ جهة الاتصال"], 8.13);
+  });
   test("letters the fonts don't have are listed once each", function () {
     var data = sampleCard({ displayName: "Иван Иванов", company: "北京" });
     assertEqual(CC.missingGlyphs(layout(data).ops), ["И", "в", "а", "н", "о", "北", "京"]);
