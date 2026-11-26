@@ -36,6 +36,11 @@ form, pick a card size, and download.
   with a suggestion for how to simplify it.
 - A toggle for **"PDF only"** vs **"all files"** (PDF + QR `.png` + `.vcf`).
 - **Accent color** from a row of print-friendly swatches, or any custom color.
+- **Ready for a print shop too**: the PDF embeds its fonts, so names in Polish,
+  Turkish, Vietnamese and other Latin-script languages print correctly everywhere, and
+  the app warns about characters the card can't print. Colours are RGB; shops convert
+  them for their inks, so a bright accent may print a little duller. Ask for a proof if
+  the exact shade matters.
 - **Remembers your details** between visits. They're saved only in your browser
   (`localStorage`), never sent anywhere; **Clear form** wipes them.
 - **Light and dark mode** that follow your system setting (the card always stays white,

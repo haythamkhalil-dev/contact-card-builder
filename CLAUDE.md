@@ -7,6 +7,12 @@ Guidance for working in this repo. Read this first.
 > **real test print** that shows something to fix (see
 > [Fixing print issues](#fixing-print-issues)). Don't start the on-hold roadmap
 > items (6–8) unless the maintainer asks.
+>
+> **2026-11-26: pre-print review.** Before any printer was available, two sample PDFs
+> were reviewed for print. That led to three fixes (see
+> [Fixing print issues](#fixing-print-issues)): the card's Latin font is now the
+> embedded Arimo (names like "Łukasz" used to print as garbage), the small print is
+> larger and darker, and Arabic text is drawn 25% larger. Colours stay RGB on purpose.
 
 ## What this is
 
@@ -156,6 +162,12 @@ maintainer on 2026-11-16. Steps 1–5 shipped; **6–8 are on hold** (maintainer
 
 **Decided against (don't re-propose without a new reason):**
 - *Import a `.vcf` into the form* — step 1 covers the need; not worth the complexity.
+- *Converting the card's colours to CMYK in the app* (2026-11-26) — without the
+  shop's colour profile a formula does worse than the shop's own conversion, and home
+  printers take RGB anyway. If a shop print shows coloured fringes on the QR code or
+  the small text, the fix is to write only the neutrals (`CARD_INK`, `CARD_GREY`, the
+  QR, cut marks) as black-only CMYK (jsPDF's 4-argument `setFillColor` /
+  `setTextColor`), keeping the accent RGB.
 - *Bleed / crop marks on the one-card PDF* — keeps the PDF exactly card-sized. Revisit
   only if a print shop asks for bleed, and then as an option.
 
@@ -176,12 +188,25 @@ sizes were checked only in PDF viewers. When a print happens, check:
   scans easily, lower `QR_MIN_MODULE_MM`; if the unwarned one struggles, raise it.
 - **Text near the edges**: contact lines stop at the card's 14 pt (~5 mm) margin `M` in
   `layoutCard()`, because print shops only promise to cut within ~3 mm.
+- **Small print**: is the caption under the QR (`CAPTION_SIZE`, 6.5 pt) readable, and
+  the grey (`CARD_GREY`, `#575c63`, also the company line) solid rather than dotty?
+  On an Arabic card, do the title, company and phone labels read about as large as
+  the Latin numbers beside them (`ARABIC_TEXT_SCALE`, 1.25; the name isn't scaled)?
+- **Fonts**: the card's Latin text is Arimo (`lib/arimo-font.js`) and its Arabic text
+  is Amiri. Both are embedded, so the PDF prints the same on any printer and passes a
+  print shop's font check. Characters neither font has (Cyrillic, Greek, Chinese…) are
+  listed in a warning (`missingGlyphs()`); to support another script, add it to the
+  Arimo subset (see `lib/README.md`).
+- **Accent colour at a shop**: colours are RGB and shops convert them to CMYK, so a
+  bright accent can come out a little duller. Ask the shop for a proof if the exact
+  shade matters (see *Decided against* for why the app doesn't convert).
 
 Any change to the card goes through `layoutCard()` only (see Design work). Before
 committing, open `tests.html` (all green), and make sure cards that weren't meant to
 change still produce the same PDF: build it from the last commit (`git archive HEAD`)
 and from the working tree, then compare the bytes, ignoring the `/CreationDate` and
-`/ID` lines.
+`/ID` lines. (A font change alters every PDF's bytes; then compare the
+`layoutCard()` output instead: every position, size and `fits` flag.)
 
 ## How to run locally
 
